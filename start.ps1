@@ -54,6 +54,8 @@ function Get-ActiveLocks([string]$locksFile) {
 
 function Save-Locks([string]$locksFile, $locks) {
     Set-Content -Path $locksFile -Value ($locks | ConvertTo-Json -Depth 8) -Encoding UTF8
+
+    return @{ dataDir = $dir; assetsFile = $assetsPath; buFile = $buPath; pentestsFile = $pentestsPath }
 }
 
 function Get-ContentType([string]$path) {
@@ -81,6 +83,8 @@ function Set-SecurityHeaders($response) {
 function Send-Json($context, $statusCode, $obj) {
     $context.Response.StatusCode = $statusCode
     Set-SecurityHeaders $context.Response
+function Send-Json($context, $statusCode, $obj) {
+    $context.Response.StatusCode = $statusCode
     $context.Response.ContentType = 'application/json; charset=utf-8'
     $bytes = [Text.Encoding]::UTF8.GetBytes(($obj | ConvertTo-Json -Depth 12))
     $context.Response.ContentLength64 = $bytes.Length

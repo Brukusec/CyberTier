@@ -31,6 +31,8 @@ const state = {
   projectEditMode: false
 };
 localStorage.setItem('cyberdel-owner', state.owner);
+  assetsSearch: ''
+};
 
 const $ = (id) => document.getElementById(id);
 const assetsTbody = document.querySelector('#assetsTable tbody');
@@ -109,6 +111,9 @@ function releaseAllLocks() {
 window.addEventListener('beforeunload', releaseAllLocks);
 
 
+let persistTimer = null;
+
+function setStatus(msg) { $('status').textContent = msg; }
 function escapeHtml(text) { return String(text ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;'); }
 
 
@@ -168,6 +173,14 @@ function createAsset(payload = {}) {
     techOwner: sanitiseText(payload.techOwner || payload.tech_owner || '', 120),
     mainContact: sanitiseText(payload.mainContact || '', 120),
     otherContacts: sanitiseText(payload.otherContacts || '', 180),
+    assetId: payload.assetId || payload.asset_id || '',
+    name: payload.name || payload.asset_name || '',
+    assetType: payload.assetType || payload.asset_type || 'WebApp',
+    buId: payload.buId || '',
+    businessOwner: payload.businessOwner || payload.business_owner || '',
+    techOwner: payload.techOwner || payload.tech_owner || '',
+    mainContact: payload.mainContact || '',
+    otherContacts: payload.otherContacts || '',
     environment: payload.environment || 'Prod',
     externalFacing: Boolean(payload.externalFacing),
     riskImpactRating: payload.riskImpactRating || payload.risk_impact_rating || 'Medium',
@@ -177,6 +190,9 @@ function createAsset(payload = {}) {
     cyberTierCurrentYear: sanitiseText(payload.cyberTierCurrentYear || '', 20),
     cyberTierPreviousYear: sanitiseText(payload.cyberTierPreviousYear || '', 20),
     pentestDate: sanitiseDate(payload.pentestDate || ''),
+    cyberTierDefinedYear: payload.cyberTierDefinedYear || '',
+    cyberTierCurrentYear: payload.cyberTierCurrentYear || '',
+    cyberTierPreviousYear: payload.cyberTierPreviousYear || '',
     pentestStatus: payload.pentestStatus || 'No schedule',
     pentestDone: Boolean(payload.pentestDone)
   };
@@ -245,6 +261,31 @@ function normaliseReport(r = {}) {
     deliveredAt: sanitiseDate(r.deliveredAt || ''),
     attachmentName: sanitiseText(r.attachmentName || '', 220),
     attachmentType: sanitiseText(r.attachmentType || '', 80)
+function normaliseFinding(f = {}) {
+  return {
+    id: f.id || crypto.randomUUID(),
+    title: f.title || '',
+    severity: f.severity || 'Medium',
+    status: f.status || 'Open',
+    cvss: f.cvss || '',
+    cwe: f.cwe || '',
+    owasp: f.owasp || '',
+    affectedEndpoint: f.affectedEndpoint || '',
+    ttp: f.ttp || '',
+    description: f.description || '',
+    recommendation: f.recommendation || ''
+  };
+}
+
+function normaliseReport(r = {}) {
+  return {
+    id: r.id || crypto.randomUUID(),
+    name: r.name || '',
+    type: r.type || 'Technical report',
+    status: r.status || 'Draft',
+    version: r.version || '',
+    reference: r.reference || '',
+    deliveredAt: r.deliveredAt || ''
   };
 }
 
@@ -265,6 +306,20 @@ function createProject(payload = {}) {
     scope: sanitiseText(payload.scope || '', 1200),
     attackSurface: sanitiseText(payload.attackSurface || '', 1200),
     executiveSummary: sanitiseText(payload.executiveSummary || '', 1200),
+    name: payload.name || 'Untitled project',
+    clientName: payload.clientName || '',
+    assetId: payload.assetId || '',
+    buId: payload.buId || '',
+    phase: payload.phase || 'Planning',
+    testLead: payload.testLead || '',
+    clientContact: payload.clientContact || '',
+    startDate: payload.startDate || '',
+    endDate: payload.endDate || '',
+    methodology: payload.methodology || '',
+    retestRequired: Boolean(payload.retestRequired),
+    scope: payload.scope || '',
+    attackSurface: payload.attackSurface || '',
+    executiveSummary: payload.executiveSummary || '',
     findings: (payload.findings || []).map(normaliseFinding),
     reports: (payload.reports || []).map(normaliseReport)
   };
@@ -407,6 +462,8 @@ function renderProjectsTable() {
       if (!ok) return;
       state.selectedProjectId = project.id;
       state.projectEditMode = false;
+    tr.querySelector('[data-open]').addEventListener('click', () => {
+      state.selectedProjectId = project.id;
       renderProjectWorkbench();
       setStatus(`Loaded project: ${project.name}`);
     });
@@ -474,6 +531,9 @@ function renderProjectWorkbench() {
     project.findings.forEach((f, idx) => {
       const tr = document.createElement('tr');
       tr.innerHTML = `<td>${escapeHtml(f.title)}</td><td>${escapeHtml(f.cvssScore || '—')}</td><td>${escapeHtml(f.severity || '—')}</td><td>${escapeHtml(f.cwe || '—')}</td><td>${escapeHtml(f.owasp || '—')}</td><td>${escapeHtml(f.dateFound || '—')}</td><td><button class="small-btn" data-del="1">Remove</button></td>`;
+      const issueType = [f.cwe, f.owasp].filter(Boolean).join(' / ') || '—';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${escapeHtml(f.title)}</td><td>${escapeHtml(f.severity)}</td><td>${escapeHtml(f.status)}</td><td>${escapeHtml(f.cvss || '—')}</td><td>${escapeHtml(f.ttp || '—')}</td><td>${escapeHtml(issueType)}</td><td><button class="small-btn" data-del="1">Remove</button></td>`;
       tr.querySelector('[data-del]').addEventListener('click', () => {
         project.findings.splice(idx, 1);
         renderPentests();
@@ -490,6 +550,7 @@ function renderProjectWorkbench() {
     project.reports.forEach((r, idx) => {
       const tr = document.createElement('tr');
       tr.innerHTML = `<td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.type)}</td><td>${escapeHtml(r.status)}</td><td>${escapeHtml(r.version || '—')}</td><td>${escapeHtml(r.deliveredAt || '—')}</td><td>${escapeHtml(r.attachmentName || '—')}</td><td><button class="small-btn" data-del="1">Remove</button></td>`;
+      tr.innerHTML = `<td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.type)}</td><td>${escapeHtml(r.status)}</td><td>${escapeHtml(r.version || '—')}</td><td>${escapeHtml(r.reference || '—')}</td><td><button class="small-btn" data-del="1">Remove</button></td>`;
       tr.querySelector('[data-del]').addEventListener('click', () => {
         project.reports.splice(idx, 1);
         renderPentests();
@@ -593,6 +654,7 @@ async function loadBootstrap() {
 }
 
 async function openAssetEditor(asset = null) {
+function openAssetEditor(asset = null) {
   const form = $('assetEditorForm');
   form.reset();
   renderBuSelectors();
@@ -634,6 +696,7 @@ function openAssetShow(asset) {
     ['Environment', asset.environment], ['External facing', asset.externalFacing ? 'Yes' : 'No'], ['Risk impact rating', asset.riskImpactRating],
     ['Defined tier', asset.cyberTierDefinedYear], ['Current year tier', asset.cyberTierCurrentYear], ['Previous year tier', asset.cyberTierPreviousYear],
     ['Current pentest status', asset.pentestStatus], ['Pentest date', asset.pentestDate], ['Pentest complete', asset.pentestDone ? 'Yes' : 'No'],
+    ['Current pentest status', asset.pentestStatus], ['Pentest complete', asset.pentestDone ? 'Yes' : 'No'],
     ['Calculated priority tier', asset.calc.pentest_priority_tier], ['Impact score', asset.calc.impact_score], ['Exposure score', asset.calc.exposure_score], ['Adjusted priority score', asset.calc.adjusted_priority_score]
   ];
   $('assetShowContent').innerHTML = rows.map(([k, v]) => `<div class="asset-show-row"><span>${escapeHtml(k)}</span><strong>${escapeHtml(v || '—')}</strong></div>`).join('');
@@ -692,6 +755,10 @@ $('assetEditorModal').addEventListener('close', async () => {
 $('closeAssetShowBtn').addEventListener('click', () => $('assetShowModal').close());
 
 $('assetEditorForm').addEventListener('submit', async (e) => {
+$('cancelAssetEditorBtn').addEventListener('click', () => $('assetEditorModal').close());
+$('closeAssetShowBtn').addEventListener('click', () => $('assetShowModal').close());
+
+$('assetEditorForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const fd = new FormData($('assetEditorForm'));
   const payload = Object.fromEntries(fd.entries());
@@ -712,6 +779,7 @@ $('assetEditorForm').addEventListener('submit', async (e) => {
   const previousId = payload.id;
   $('assetEditorModal').close();
   if (previousId) await releaseLock('asset', previousId);
+  $('assetEditorModal').close();
   renderAll();
 });
 
@@ -747,6 +815,10 @@ $('addProjectBtn').addEventListener('click', async () => {
   await acquireLock('project', project.id);
   state.selectedProjectId = project.id;
   state.projectEditMode = true;
+$('addProjectBtn').addEventListener('click', () => {
+  const project = createProject({ name: `Pentest Project ${state.pentestProjects.length + 1}` });
+  state.pentestProjects.push(project);
+  state.selectedProjectId = project.id;
   renderPentests();
   queuePersist('Project created and saved.');
 });
@@ -754,6 +826,8 @@ $('addProjectBtn').addEventListener('click', async () => {
 $('projectForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!state.projectEditMode) return setStatus('Click Edit project to enable editing.');
+$('projectForm').addEventListener('submit', (e) => {
+  e.preventDefault();
   const fd = new FormData($('projectForm'));
   const payload = Object.fromEntries(fd.entries());
   const project = state.pentestProjects.find((p) => p.id === payload.id);
@@ -781,6 +855,24 @@ $('projectForm').addEventListener('submit', async (e) => {
   });
 
   state.projectEditMode = false;
+
+  Object.assign(project, {
+    name: payload.name,
+    clientName: payload.clientName,
+    assetId: payload.assetId,
+    buId: payload.buId,
+    phase: payload.phase,
+    testLead: payload.testLead,
+    clientContact: payload.clientContact,
+    startDate: payload.startDate,
+    endDate: payload.endDate,
+    methodology: payload.methodology,
+    retestRequired: fd.get('retestRequired') === 'on',
+    scope: payload.scope,
+    attackSurface: payload.attackSurface,
+    executiveSummary: payload.executiveSummary
+  });
+
   renderPentests();
   queuePersist('Project updated and saved.');
 });
@@ -800,6 +892,15 @@ $('findingForm').addEventListener('submit', async (e) => {
   project.findings.push(finding);
   $('findingForm').reset();
   closeFindingWorkbench();
+$('findingForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const project = getSelectedProject();
+  if (!project) return setStatus('Select or create a project first.');
+  const fd = new FormData($('findingForm'));
+  const finding = normaliseFinding(Object.fromEntries(fd.entries()));
+  if (!finding.title.trim()) return setStatus('Finding title is required.');
+  project.findings.push(finding);
+  $('findingForm').reset();
   renderPentests();
   queuePersist('Finding added and saved.');
 });
@@ -825,6 +926,15 @@ $('reportForm').addEventListener('submit', async (e) => {
   if (!report.name.trim()) return setStatus('Report name is required.');
   project.reports.push(report);
   closeReportEditor();
+$('reportForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const project = getSelectedProject();
+  if (!project) return setStatus('Select or create a project first.');
+  const fd = new FormData($('reportForm'));
+  const report = normaliseReport(Object.fromEntries(fd.entries()));
+  if (!report.name.trim()) return setStatus('Report name is required.');
+  project.reports.push(report);
+  $('reportForm').reset();
   renderPentests();
   queuePersist('Report added and saved.');
 });
@@ -953,6 +1063,11 @@ if (closeProjectWorkbenchBtn) {
 
 document.querySelectorAll('.menu-item').forEach((btn) => btn.addEventListener('click', () => {
   openTab(btn.dataset.tab);
+document.querySelectorAll('.menu-item').forEach((btn) => btn.addEventListener('click', () => {
+  document.querySelectorAll('.menu-item').forEach((b) => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(btn.dataset.tab).classList.add('active');
 }));
 
 loadBootstrap().catch((err) => {
