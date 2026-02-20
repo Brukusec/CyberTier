@@ -12,6 +12,8 @@ Open: `http://localhost:8787`
 
 Auto-save is enabled (no manual Save changes button).
 
+All date fields use calendar inputs.
+
 ## Data model
 
 Configured shared folder stores:
@@ -31,6 +33,15 @@ Configured shared folder stores:
   - Multi-BU filtering and search
   - Tier distribution and pentest coverage charts
 - **Pentest Projects**:
+  - Edit lock protection for concurrent editing of assets/projects (findings and reports protected through project lock)
+  - Project register with phase and tester ownership
+  - Workbench opens as a second/sub panel when creating or opening a project
+  - When opened, a subfolder appears under Pentest Projects with the selected project ID and disappears when closed
+  - Workbench fields for scope, attack surface, methodology, retest and summary
+  - Project fields are read-only until you click the **Edit project** button
+  - Findings are managed in a dedicated subfolder/workbench (`/<project-id>/finding`)
+  - Finding fields: title, description, steps to reproduce, impact, CVSS calculator, calculated severity, CWE list, OWASP list, TTP/MITRE (including Not applicable), finding date
+  - Report management uses an **Add report** button that reveals report fields (name, type, version, date) and report upload metadata for PDF/DOCX
   - Project register with phase and tester ownership
   - Workbench fields for scope, attack surface, methodology, retest and summary
   - Findings/issues management with severity, status, CVSS, CWE/OWASP and TTP
@@ -45,6 +56,9 @@ Configured shared folder stores:
 - `GET/POST /api/business-units`
 - `GET/POST /api/pentests`
 - `GET/POST /api/settings`
+- `GET /api/locks`
+- `POST /api/locks/acquire`
+- `POST /api/locks/release`
 - `GET /api/health`
 
 ## Scoring

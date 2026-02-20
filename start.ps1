@@ -36,10 +36,24 @@ function Ensure-DataFiles {
     $assetsPath = Join-Path $dir 'assets.json'
     $buPath = Join-Path $dir 'business-units.json'
     $pentestsPath = Join-Path $dir 'pentests.json'
+    $locksPath = Join-Path $dir 'locks.json'
 
     if (-not (Test-Path $assetsPath)) { '[]' | Set-Content -Path $assetsPath -Encoding UTF8 }
     if (-not (Test-Path $buPath)) { '[]' | Set-Content -Path $buPath -Encoding UTF8 }
     if (-not (Test-Path $pentestsPath)) { '[]' | Set-Content -Path $pentestsPath -Encoding UTF8 }
+    if (-not (Test-Path $locksPath)) { '[]' | Set-Content -Path $locksPath -Encoding UTF8 }
+
+    return @{ dataDir = $dir; assetsFile = $assetsPath; buFile = $buPath; pentestsFile = $pentestsPath; locksFile = $locksPath }
+}
+
+function Get-ActiveLocks([string]$locksFile) {
+    $allLocks = @(Read-JsonFile $locksFile)
+    $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    return @($allLocks | Where-Object { $_.expiresAt -gt $now })
+}
+
+function Save-Locks([string]$locksFile, $locks) {
+    Set-Content -Path $locksFile -Value ($locks | ConvertTo-Json -Depth 8) -Encoding UTF8
 
     return @{ dataDir = $dir; assetsFile = $assetsPath; buFile = $buPath; pentestsFile = $pentestsPath }
 }
@@ -58,6 +72,17 @@ function Get-ContentType([string]$path) {
     }
 }
 
+
+function Set-SecurityHeaders($response) {
+    $response.Headers['X-Content-Type-Options'] = 'nosniff'
+    $response.Headers['X-Frame-Options'] = 'DENY'
+    $response.Headers['Referrer-Policy'] = 'no-referrer'
+    $response.Headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+}
+
+function Send-Json($context, $statusCode, $obj) {
+    $context.Response.StatusCode = $statusCode
+    Set-SecurityHeaders $context.Response
 function Send-Json($context, $statusCode, $obj) {
     $context.Response.StatusCode = $statusCode
     $context.Response.ContentType = 'application/json; charset=utf-8'
@@ -104,6 +129,7 @@ try {
             if ($path -eq '/api/assets' -and $method -eq 'GET') { Send-Json $context 200 @(Read-JsonFile $files.assetsFile); continue }
             if ($path -eq '/api/business-units' -and $method -eq 'GET') { Send-Json $context 200 @(Read-JsonFile $files.buFile); continue }
             if ($path -eq '/api/pentests' -and $method -eq 'GET') { Send-Json $context 200 @(Read-JsonFile $files.pentestsFile); continue }
+            if ($path -eq '/api/locks' -and $method -eq 'GET') { Send-Json $context 200 @(Get-ActiveLocks $files.locksFile); continue }
 
             if ($path -in @('/api/assets','/api/business-units','/api/pentests') -and $method -eq 'POST') {
                 $reader = [IO.StreamReader]::new($req.InputStream, $req.ContentEncoding)
@@ -113,6 +139,52 @@ try {
                 $target = if ($path -eq '/api/assets') { $files.assetsFile } elseif ($path -eq '/api/business-units') { $files.buFile } else { $files.pentestsFile }
                 Set-Content -Path $target -Value ($incoming | ConvertTo-Json -Depth 12) -Encoding UTF8
                 Send-Json $context 200 @{ ok = $true; count = @($incoming).Count }
+                continue
+            }
+
+            if ($path -eq '/api/locks/acquire' -and $method -eq 'POST') {
+                $reader = [IO.StreamReader]::new($req.InputStream, $req.ContentEncoding)
+                $body = $reader.ReadToEnd()
+                $reader.Close()
+                $incoming = $body | ConvertFrom-Json
+
+                if (-not $incoming.resourceType -or -not $incoming.resourceId -or -not $incoming.owner) {
+                    Send-Json $context 400 @{ ok = $false; error = 'resourceType, resourceId and owner are required' }
+                    continue
+                }
+
+                $ttlSeconds = if ($incoming.ttlSeconds) { [Math]::Min([Math]::Max([int]$incoming.ttlSeconds, 30), 600) } else { 120 }
+                $locks = @(Get-ActiveLocks $files.locksFile)
+                $match = $locks | Where-Object { $_.resourceType -eq $incoming.resourceType -and $_.resourceId -eq $incoming.resourceId } | Select-Object -First 1
+                $expiresAt = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + $ttlSeconds
+
+                if ($match -and $match.owner -ne $incoming.owner) {
+                    Send-Json $context 409 @{ ok = $false; error = 'Locked by another user'; lock = $match }
+                    continue
+                }
+
+                $locks = @($locks | Where-Object { -not ( $_.resourceType -eq $incoming.resourceType -and $_.resourceId -eq $incoming.resourceId ) })
+                $locks += @{ resourceType = $incoming.resourceType; resourceId = $incoming.resourceId; owner = $incoming.owner; acquiredAt = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds(); expiresAt = $expiresAt }
+                Save-Locks $files.locksFile $locks
+                Send-Json $context 200 @{ ok = $true; expiresAt = $expiresAt }
+                continue
+            }
+
+            if ($path -eq '/api/locks/release' -and $method -eq 'POST') {
+                $reader = [IO.StreamReader]::new($req.InputStream, $req.ContentEncoding)
+                $body = $reader.ReadToEnd()
+                $reader.Close()
+                $incoming = $body | ConvertFrom-Json
+
+                if (-not $incoming.resourceType -or -not $incoming.resourceId -or -not $incoming.owner) {
+                    Send-Json $context 400 @{ ok = $false; error = 'resourceType, resourceId and owner are required' }
+                    continue
+                }
+
+                $locks = @(Get-ActiveLocks $files.locksFile)
+                $locks = @($locks | Where-Object { -not ( $_.resourceType -eq $incoming.resourceType -and $_.resourceId -eq $incoming.resourceId -and $_.owner -eq $incoming.owner ) })
+                Save-Locks $files.locksFile $locks
+                Send-Json $context 200 @{ ok = $true }
                 continue
             }
 
@@ -141,6 +213,7 @@ try {
             if (Test-Path $filePath -PathType Leaf) {
                 $bytes = [IO.File]::ReadAllBytes($filePath)
                 $context.Response.StatusCode = 200
+                Set-SecurityHeaders $context.Response
                 $context.Response.ContentType = Get-ContentType $filePath
                 $context.Response.ContentLength64 = $bytes.Length
                 $context.Response.OutputStream.Write($bytes, 0, $bytes.Length)

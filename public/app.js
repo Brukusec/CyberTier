@@ -25,6 +25,12 @@ const state = {
   pentestProjects: [],
   selectedProjectId: '',
   assetsFilterBuIds: [],
+  assetsSearch: '',
+  owner: localStorage.getItem('cyberdel-owner') || `user-${crypto.randomUUID().slice(0,8)}`,
+  ownedLocks: [],
+  projectEditMode: false
+};
+localStorage.setItem('cyberdel-owner', state.owner);
   assetsSearch: ''
 };
 
@@ -34,6 +40,77 @@ const buTbody = document.querySelector('#buTable tbody');
 const projectsTbody = document.querySelector('#pentestProjectsTable tbody');
 const findingsTbody = document.querySelector('#findingsTable tbody');
 const reportsTbody = document.querySelector('#reportsTable tbody');
+const closeProjectWorkbenchBtn = $('closeProjectWorkbenchBtn');
+const projectSubfolder = $('projectSubfolder');
+const projectEditBtn = $('projectEditBtn');
+const findingWorkbench = $('findingWorkbench');
+const openFindingEditorBtn = $('openFindingEditorBtn');
+const closeFindingWorkbenchBtn = $('closeFindingWorkbenchBtn');
+const cvssScoreInput = $('cvssScore');
+const cvssSeverityInput = $('cvssSeverity');
+const openReportEditorBtn = $('openReportEditorBtn');
+const cancelReportEditorBtn = $('cancelReportEditorBtn');
+const reportFormEl = $('reportForm');
+let persistTimer = null;
+
+function setStatus(msg) { $('status').textContent = msg; }
+function sanitiseText(value, max = 240) {
+  return String(value || '')
+    .replace(/[<>\`]/g, '')
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .trim()
+    .slice(0, max);
+}
+
+function sanitiseDate(value) {
+  const v = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '';
+}
+
+async function acquireLock(resourceType, resourceId) {
+  if (!resourceId) return true;
+  const res = await fetch('/api/locks/acquire', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ resourceType, resourceId, owner: state.owner, ttlSeconds: 120 })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const owner = data?.lock?.owner || 'another user';
+    setStatus(`Record is locked by ${owner}. Please try again later.`);
+    return false;
+  }
+  const key = `${resourceType}:${resourceId}`;
+  if (!state.ownedLocks.includes(key)) state.ownedLocks.push(key);
+  return true;
+}
+
+async function releaseLock(resourceType, resourceId) {
+  if (!resourceId) return;
+  await fetch('/api/locks/release', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ resourceType, resourceId, owner: state.owner })
+  }).catch(() => {});
+  state.ownedLocks = state.ownedLocks.filter((k) => k !== `${resourceType}:${resourceId}`);
+}
+
+
+function hasOwnedLock(resourceType, resourceId) {
+  return state.ownedLocks.includes(`${resourceType}:${resourceId}`);
+}
+
+function releaseAllLocks() {
+  state.ownedLocks.forEach((key) => {
+    const [resourceType, ...rest] = key.split(':');
+    const resourceId = rest.join(':');
+    navigator.sendBeacon?.('/api/locks/release', JSON.stringify({ resourceType, resourceId, owner: state.owner }));
+  });
+}
+
+window.addEventListener('beforeunload', releaseAllLocks);
+
+
 let persistTimer = null;
 
 function setStatus(msg) { $('status').textContent = msg; }
@@ -88,6 +165,14 @@ function computePriority(asset, config = SCORING_CONFIG) {
 function createAsset(payload = {}) {
   const asset = {
     id: payload.id || crypto.randomUUID(),
+    assetId: sanitiseText(payload.assetId || payload.asset_id || '', 80),
+    name: sanitiseText(payload.name || payload.asset_name || '', 140),
+    assetType: payload.assetType || payload.asset_type || 'WebApp',
+    buId: payload.buId || '',
+    businessOwner: sanitiseText(payload.businessOwner || payload.business_owner || '', 120),
+    techOwner: sanitiseText(payload.techOwner || payload.tech_owner || '', 120),
+    mainContact: sanitiseText(payload.mainContact || '', 120),
+    otherContacts: sanitiseText(payload.otherContacts || '', 180),
     assetId: payload.assetId || payload.asset_id || '',
     name: payload.name || payload.asset_name || '',
     assetType: payload.assetType || payload.asset_type || 'WebApp',
@@ -101,6 +186,10 @@ function createAsset(payload = {}) {
     riskImpactRating: payload.riskImpactRating || payload.risk_impact_rating || 'Medium',
     exposureFactors: normalizeExposureFactors(payload.exposureFactors || {}),
     crownJewelAdjacency: Number(payload.crownJewelAdjacency) ? 1 : 0,
+    cyberTierDefinedYear: sanitiseText(payload.cyberTierDefinedYear || '', 20),
+    cyberTierCurrentYear: sanitiseText(payload.cyberTierCurrentYear || '', 20),
+    cyberTierPreviousYear: sanitiseText(payload.cyberTierPreviousYear || '', 20),
+    pentestDate: sanitiseDate(payload.pentestDate || ''),
     cyberTierDefinedYear: payload.cyberTierDefinedYear || '',
     cyberTierCurrentYear: payload.cyberTierCurrentYear || '',
     cyberTierPreviousYear: payload.cyberTierPreviousYear || '',
@@ -115,6 +204,63 @@ function createBusinessUnit(payload = {}) {
   return { id: payload.id || crypto.randomUUID(), name: payload.name || '', mainContact: payload.mainContact || '' };
 }
 
+function calculateCvssFromMetrics(m) {
+  const AV = { N: 0.85, A: 0.62, L: 0.55, P: 0.2 }[m.av] || 0.85;
+  const AC = { L: 0.77, H: 0.44 }[m.ac] || 0.77;
+  const UI = { N: 0.85, R: 0.62 }[m.ui] || 0.85;
+  const S = m.s || 'U';
+  const PRU = { N: 0.85, L: 0.62, H: 0.27 };
+  const PRC = { N: 0.85, L: 0.68, H: 0.5 };
+  const PR = (S === 'C' ? PRC : PRU)[m.pr] || 0.85;
+  const C = { N: 0, L: 0.22, H: 0.56 }[m.c] || 0;
+  const I = { N: 0, L: 0.22, H: 0.56 }[m.i] || 0;
+  const A = { N: 0, L: 0.22, H: 0.56 }[m.a] || 0;
+
+  const impactBase = 1 - ((1 - C) * (1 - I) * (1 - A));
+  const impact = S === 'U' ? 6.42 * impactBase : 7.52 * (impactBase - 0.029) - 3.25 * Math.pow(impactBase - 0.02, 15);
+  const exploitability = 8.22 * AV * AC * PR * UI;
+  let score = 0;
+  if (impact > 0) {
+    score = S === 'U' ? Math.min(impact + exploitability, 10) : Math.min(1.08 * (impact + exploitability), 10);
+  }
+  score = Math.ceil(score * 10) / 10;
+  let severity = 'None';
+  if (score >= 9) severity = 'Critical';
+  else if (score >= 7) severity = 'High';
+  else if (score >= 4) severity = 'Medium';
+  else if (score > 0) severity = 'Low';
+  return { score, severity };
+}
+
+function normaliseFinding(f = {}) {
+  return {
+    id: f.id || crypto.randomUUID(),
+    title: sanitiseText(f.title || '', 180),
+    description: sanitiseText(f.description || '', 2000),
+    reproSteps: sanitiseText(f.reproSteps || '', 2000),
+    impact: sanitiseText(f.impact || '', 1500),
+    cvssScore: Number(f.cvssScore || f.cvss || 0) || 0,
+    severity: sanitiseText(f.severity || 'Low', 20),
+    cwe: sanitiseText(f.cwe || '', 120),
+    owasp: sanitiseText(f.owasp || '', 120),
+    ttp: sanitiseText(f.ttp || 'Not applicable', 120),
+    dateFound: sanitiseDate(f.dateFound || f.discoveredAt || ''),
+    status: sanitiseText(f.status || 'Open', 40)
+  };
+}
+
+
+function normaliseReport(r = {}) {
+  return {
+    id: r.id || crypto.randomUUID(),
+    name: sanitiseText(r.name || '', 140),
+    type: r.type || 'Technical report',
+    status: r.status || 'Draft',
+    version: sanitiseText(r.version || '', 20),
+    reference: sanitiseText(r.reference || '', 220),
+    deliveredAt: sanitiseDate(r.deliveredAt || ''),
+    attachmentName: sanitiseText(r.attachmentName || '', 220),
+    attachmentType: sanitiseText(r.attachmentType || '', 80)
 function normaliseFinding(f = {}) {
   return {
     id: f.id || crypto.randomUUID(),
@@ -146,6 +292,20 @@ function normaliseReport(r = {}) {
 function createProject(payload = {}) {
   return {
     id: payload.id || crypto.randomUUID(),
+    name: sanitiseText(payload.name || 'Untitled project', 140),
+    clientName: sanitiseText(payload.clientName || '', 140),
+    assetId: payload.assetId || '',
+    buId: payload.buId || '',
+    phase: payload.phase || 'Planning',
+    testLead: sanitiseText(payload.testLead || '', 120),
+    clientContact: sanitiseText(payload.clientContact || '', 120),
+    startDate: sanitiseDate(payload.startDate || ''),
+    endDate: sanitiseDate(payload.endDate || ''),
+    methodology: sanitiseText(payload.methodology || '', 120),
+    retestRequired: Boolean(payload.retestRequired),
+    scope: sanitiseText(payload.scope || '', 1200),
+    attackSurface: sanitiseText(payload.attackSurface || '', 1200),
+    executiveSummary: sanitiseText(payload.executiveSummary || '', 1200),
     name: payload.name || 'Untitled project',
     clientName: payload.clientName || '',
     assetId: payload.assetId || '',
@@ -297,12 +457,18 @@ function renderProjectsTable() {
       <td>${project.reports.length}</td>
       <td><button class="small-btn" data-open="1">Open</button> <button class="small-btn" data-del="1">Remove</button></td>`;
 
+    tr.querySelector('[data-open]').addEventListener('click', async () => {
+      const ok = await acquireLock('project', project.id);
+      if (!ok) return;
+      state.selectedProjectId = project.id;
+      state.projectEditMode = false;
     tr.querySelector('[data-open]').addEventListener('click', () => {
       state.selectedProjectId = project.id;
       renderProjectWorkbench();
       setStatus(`Loaded project: ${project.name}`);
     });
     tr.querySelector('[data-del]').addEventListener('click', () => {
+      releaseLock('project', project.id);
       state.pentestProjects = state.pentestProjects.filter((p) => p.id !== project.id);
       if (state.selectedProjectId === project.id) state.selectedProjectId = '';
       renderPentests();
@@ -310,6 +476,17 @@ function renderProjectsTable() {
     });
     projectsTbody.appendChild(tr);
   });
+}
+
+
+function setProjectFormEditable(editable) {
+  const form = $('projectForm');
+  if (!form) return;
+  form.querySelectorAll('input, select, textarea, button[type="submit"]').forEach((el) => {
+    if (el.name === 'id') return;
+    el.disabled = !editable;
+  });
+  if (projectEditBtn) projectEditBtn.textContent = editable ? 'Editing enabled' : 'Edit project';
 }
 
 function renderProjectWorkbench() {
@@ -323,6 +500,10 @@ function renderProjectWorkbench() {
     form.id.value = '';
     findingsTbody.innerHTML = '<tr><td colspan="7">Select a project to manage findings.</td></tr>';
     reportsTbody.innerHTML = '<tr><td colspan="6">Select a project to manage reports.</td></tr>';
+    state.projectEditMode = false;
+    setProjectFormEditable(false);
+    closeFindingWorkbench();
+    closeReportEditor();
     return;
   }
 
@@ -341,12 +522,15 @@ function renderProjectWorkbench() {
   form.scope.value = project.scope;
   form.attackSurface.value = project.attackSurface;
   form.executiveSummary.value = project.executiveSummary;
+  setProjectFormEditable(state.projectEditMode);
 
   findingsTbody.innerHTML = '';
   if (!project.findings.length) {
     findingsTbody.innerHTML = '<tr><td colspan="7">No findings logged yet.</td></tr>';
   } else {
     project.findings.forEach((f, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${escapeHtml(f.title)}</td><td>${escapeHtml(f.cvssScore || '—')}</td><td>${escapeHtml(f.severity || '—')}</td><td>${escapeHtml(f.cwe || '—')}</td><td>${escapeHtml(f.owasp || '—')}</td><td>${escapeHtml(f.dateFound || '—')}</td><td><button class="small-btn" data-del="1">Remove</button></td>`;
       const issueType = [f.cwe, f.owasp].filter(Boolean).join(' / ') || '—';
       const tr = document.createElement('tr');
       tr.innerHTML = `<td>${escapeHtml(f.title)}</td><td>${escapeHtml(f.severity)}</td><td>${escapeHtml(f.status)}</td><td>${escapeHtml(f.cvss || '—')}</td><td>${escapeHtml(f.ttp || '—')}</td><td>${escapeHtml(issueType)}</td><td><button class="small-btn" data-del="1">Remove</button></td>`;
@@ -365,6 +549,7 @@ function renderProjectWorkbench() {
   } else {
     project.reports.forEach((r, idx) => {
       const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.type)}</td><td>${escapeHtml(r.status)}</td><td>${escapeHtml(r.version || '—')}</td><td>${escapeHtml(r.deliveredAt || '—')}</td><td>${escapeHtml(r.attachmentName || '—')}</td><td><button class="small-btn" data-del="1">Remove</button></td>`;
       tr.innerHTML = `<td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.type)}</td><td>${escapeHtml(r.status)}</td><td>${escapeHtml(r.version || '—')}</td><td>${escapeHtml(r.reference || '—')}</td><td><button class="small-btn" data-del="1">Remove</button></td>`;
       tr.querySelector('[data-del]').addEventListener('click', () => {
         project.reports.splice(idx, 1);
@@ -387,10 +572,66 @@ function renderBuSelectors() {
   $('projectBuSelect').innerHTML = ['<option value="">No BU</option>', ...state.businessUnits.map((b) => `<option value="${b.id}">${escapeHtml(b.name)}</option>`)].join('');
 }
 
+
+function openTab(tabId) {
+  document.querySelectorAll('.menu-item').forEach((b) => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
+  const menuBtn = document.querySelector(`.menu-item[data-tab="${tabId}"]`);
+  if (menuBtn) menuBtn.classList.add('active');
+  const panel = document.getElementById(tabId);
+  if (panel) panel.classList.add('active');
+}
+
+function renderProjectSubfolder() {
+  if (!projectSubfolder) return;
+  const project = getSelectedProject();
+  if (!project) {
+    projectSubfolder.innerHTML = '';
+    projectSubfolder.classList.add('hidden');
+    return;
+  }
+
+  const label = sanitiseText(project.id || '', 32) || 'project';
+  projectSubfolder.innerHTML = `<button type="button" class="menu-sub-item" data-target="project">/${escapeHtml(label)}</button><button type="button" class="menu-sub-item" data-target="finding">/${escapeHtml(label)}/finding</button>`;
+  projectSubfolder.classList.remove('hidden');
+  projectSubfolder.querySelector('[data-target="project"]').addEventListener('click', () => {
+    openTab('pentestsTab');
+    findingWorkbench?.classList.add('hidden');
+    renderProjectWorkbench();
+  });
+  projectSubfolder.querySelector('[data-target="finding"]').addEventListener('click', () => {
+    openTab('pentestsTab');
+    openFindingWorkbench();
+  });
+}
+
+function openFindingWorkbench() {
+  const project = getSelectedProject();
+  if (!project) return setStatus('Open a project first.');
+  if (findingWorkbench) findingWorkbench.classList.remove('hidden');
+}
+
+function closeFindingWorkbench() {
+  if (findingWorkbench) findingWorkbench.classList.add('hidden');
+}
+
+
+function openReportEditor() {
+  if (!reportFormEl) return;
+  reportFormEl.classList.remove('hidden');
+}
+
+function closeReportEditor() {
+  if (!reportFormEl) return;
+  reportFormEl.reset();
+  reportFormEl.classList.add('hidden');
+}
+
 function renderPentests() {
   renderProjectKpis();
   renderProjectsTable();
   renderProjectWorkbench();
+  renderProjectSubfolder();
 }
 
 function renderAll() {
@@ -412,12 +653,15 @@ async function loadBootstrap() {
   renderAll();
 }
 
+async function openAssetEditor(asset = null) {
 function openAssetEditor(asset = null) {
   const form = $('assetEditorForm');
   form.reset();
   renderBuSelectors();
 
   if (asset) {
+    const ok = await acquireLock('asset', asset.id);
+    if (!ok) return;
     $('assetEditorTitle').textContent = 'Edit asset';
     form.id.value = asset.id;
     form.assetId.value = asset.assetId;
@@ -434,6 +678,7 @@ function openAssetEditor(asset = null) {
     form.cyberTierDefinedYear.value = asset.cyberTierDefinedYear;
     form.cyberTierCurrentYear.value = asset.cyberTierCurrentYear;
     form.cyberTierPreviousYear.value = asset.cyberTierPreviousYear;
+    form.pentestDate.value = asset.pentestDate || '';
     form.pentestStatus.value = asset.pentestStatus;
     form.pentestDone.checked = !!asset.pentestDone;
     Object.keys(SCORING_CONFIG.exposure_weights).forEach((k) => { form[k].checked = !!asset.exposureFactors[k]; });
@@ -450,6 +695,7 @@ function openAssetShow(asset) {
     ['Business owner', asset.businessOwner], ['Technical owner', asset.techOwner], ['Main contact', asset.mainContact], ['Other contacts', asset.otherContacts],
     ['Environment', asset.environment], ['External facing', asset.externalFacing ? 'Yes' : 'No'], ['Risk impact rating', asset.riskImpactRating],
     ['Defined tier', asset.cyberTierDefinedYear], ['Current year tier', asset.cyberTierCurrentYear], ['Previous year tier', asset.cyberTierPreviousYear],
+    ['Current pentest status', asset.pentestStatus], ['Pentest date', asset.pentestDate], ['Pentest complete', asset.pentestDone ? 'Yes' : 'No'],
     ['Current pentest status', asset.pentestStatus], ['Pentest complete', asset.pentestDone ? 'Yes' : 'No'],
     ['Calculated priority tier', asset.calc.pentest_priority_tier], ['Impact score', asset.calc.impact_score], ['Exposure score', asset.calc.exposure_score], ['Adjusted priority score', asset.calc.adjusted_priority_score]
   ];
@@ -497,6 +743,18 @@ $('assetsSearch').addEventListener('input', () => {
   renderAssetsOverview();
   renderAssetsTable();
 });
+$('cancelAssetEditorBtn').addEventListener('click', async () => {
+  const id = $('assetEditorForm').id.value;
+  if (id) await releaseLock('asset', id);
+  $('assetEditorModal').close();
+});
+$('assetEditorModal').addEventListener('close', async () => {
+  const id = $('assetEditorForm').id.value;
+  if (id) await releaseLock('asset', id);
+});
+$('closeAssetShowBtn').addEventListener('click', () => $('assetShowModal').close());
+
+$('assetEditorForm').addEventListener('submit', async (e) => {
 $('cancelAssetEditorBtn').addEventListener('click', () => $('assetEditorModal').close());
 $('closeAssetShowBtn').addEventListener('click', () => $('assetShowModal').close());
 
@@ -518,6 +776,9 @@ $('assetEditorForm').addEventListener('submit', (e) => {
     state.assets.push(asset);
     queuePersist('Asset created and saved.');
   }
+  const previousId = payload.id;
+  $('assetEditorModal').close();
+  if (previousId) await releaseLock('asset', previousId);
   $('assetEditorModal').close();
   renderAll();
 });
@@ -548,6 +809,12 @@ $('settingsForm').addEventListener('submit', async (e) => {
   await loadBootstrap();
 });
 
+$('addProjectBtn').addEventListener('click', async () => {
+  const project = createProject({ name: `Pentest Project ${state.pentestProjects.length + 1}` });
+  state.pentestProjects.push(project);
+  await acquireLock('project', project.id);
+  state.selectedProjectId = project.id;
+  state.projectEditMode = true;
 $('addProjectBtn').addEventListener('click', () => {
   const project = createProject({ name: `Pentest Project ${state.pentestProjects.length + 1}` });
   state.pentestProjects.push(project);
@@ -556,12 +823,38 @@ $('addProjectBtn').addEventListener('click', () => {
   queuePersist('Project created and saved.');
 });
 
+$('projectForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!state.projectEditMode) return setStatus('Click Edit project to enable editing.');
 $('projectForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const fd = new FormData($('projectForm'));
   const payload = Object.fromEntries(fd.entries());
   const project = state.pentestProjects.find((p) => p.id === payload.id);
   if (!project) return;
+  if (!hasOwnedLock('project', project.id)) {
+    const ok = await acquireLock('project', project.id);
+    if (!ok) return;
+  }
+
+  Object.assign(project, {
+    name: sanitiseText(payload.name, 140),
+    clientName: sanitiseText(payload.clientName, 140),
+    assetId: payload.assetId,
+    buId: payload.buId,
+    phase: payload.phase,
+    testLead: sanitiseText(payload.testLead, 120),
+    clientContact: sanitiseText(payload.clientContact, 120),
+    startDate: sanitiseDate(payload.startDate),
+    endDate: sanitiseDate(payload.endDate),
+    methodology: sanitiseText(payload.methodology, 120),
+    retestRequired: fd.get('retestRequired') === 'on',
+    scope: sanitiseText(payload.scope, 1200),
+    attackSurface: sanitiseText(payload.attackSurface, 1200),
+    executiveSummary: sanitiseText(payload.executiveSummary, 1200)
+  });
+
+  state.projectEditMode = false;
 
   Object.assign(project, {
     name: payload.name,
@@ -584,6 +877,21 @@ $('projectForm').addEventListener('submit', (e) => {
   queuePersist('Project updated and saved.');
 });
 
+$('findingForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const project = getSelectedProject();
+  if (!project) return setStatus('Select or create a project first.');
+  if (!hasOwnedLock('project', project.id)) {
+    const ok = await acquireLock('project', project.id);
+    if (!ok) return;
+  }
+  const fd = new FormData($('findingForm'));
+  const payload = Object.fromEntries(fd.entries());
+  const finding = normaliseFinding(payload);
+  if (!finding.title.trim()) return setStatus('Finding title is required.');
+  project.findings.push(finding);
+  $('findingForm').reset();
+  closeFindingWorkbench();
 $('findingForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const project = getSelectedProject();
@@ -597,6 +905,27 @@ $('findingForm').addEventListener('submit', (e) => {
   queuePersist('Finding added and saved.');
 });
 
+$('reportForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const project = getSelectedProject();
+  if (!project) return setStatus('Select or create a project first.');
+  if (!hasOwnedLock('project', project.id)) {
+    const ok = await acquireLock('project', project.id);
+    if (!ok) return;
+  }
+  const fd = new FormData($('reportForm'));
+  const payload = Object.fromEntries(fd.entries());
+  const file = fd.get('reportFile');
+  if (file && file.name) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['pdf', 'doc', 'docx'].includes(ext)) return setStatus('Only PDF/DOC/DOCX files are allowed.');
+    payload.attachmentName = file.name;
+    payload.attachmentType = file.type || ext;
+  }
+  const report = normaliseReport(payload);
+  if (!report.name.trim()) return setStatus('Report name is required.');
+  project.reports.push(report);
+  closeReportEditor();
 $('reportForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const project = getSelectedProject();
@@ -648,6 +977,7 @@ $('csvInput').addEventListener('change', async (e) => {
       cyberTierDefinedYear: findValue(row, ['cyberTierDefinedYear', 'cyber_tier_defined_year']),
       cyberTierCurrentYear: findValue(row, ['cyberTierCurrentYear', 'cyber_tier_current_year']),
       cyberTierPreviousYear: findValue(row, ['cyberTierPreviousYear', 'cyber_tier_previous_year']),
+      pentestDate: findValue(row, ['pentestDate', 'pentest_date']),
       exposureFactors: {
         internet_facing: Number(findValue(row, ['internet_facing']) || 0),
         partner_or_public_api: Number(findValue(row, ['partner_or_public_api']) || 0),
@@ -665,6 +995,74 @@ $('csvInput').addEventListener('change', async (e) => {
   $('csvInput').value = '';
 });
 
+
+
+function refreshCvssCalculator() {
+  const form = $('findingForm');
+  if (!form) return;
+  const metrics = {
+    av: form.cvss_av.value,
+    ac: form.cvss_ac.value,
+    pr: form.cvss_pr.value,
+    ui: form.cvss_ui.value,
+    s: form.cvss_s.value,
+    c: form.cvss_c.value,
+    i: form.cvss_i.value,
+    a: form.cvss_a.value
+  };
+  const out = calculateCvssFromMetrics(metrics);
+  if (cvssScoreInput) cvssScoreInput.value = String(out.score.toFixed(1));
+  if (cvssSeverityInput) cvssSeverityInput.value = out.severity;
+}
+
+['cvss_av','cvss_ac','cvss_pr','cvss_ui','cvss_s','cvss_c','cvss_i','cvss_a'].forEach((n) => {
+  const el = $('findingForm')?.querySelector(`[name="${n}"]`);
+  if (el) el.addEventListener('change', refreshCvssCalculator);
+});
+refreshCvssCalculator();
+
+if (openFindingEditorBtn) {
+  openFindingEditorBtn.addEventListener('click', () => {
+    openFindingWorkbench();
+  });
+}
+if (closeFindingWorkbenchBtn) {
+  closeFindingWorkbenchBtn.addEventListener('click', () => closeFindingWorkbench());
+}
+if (openReportEditorBtn) {
+  openReportEditorBtn.addEventListener('click', () => openReportEditor());
+}
+if (cancelReportEditorBtn) {
+  cancelReportEditorBtn.addEventListener('click', () => closeReportEditor());
+}
+
+if (projectEditBtn) {
+  projectEditBtn.addEventListener('click', async () => {
+    const project = getSelectedProject();
+    if (!project) return;
+    const ok = hasOwnedLock('project', project.id) || await acquireLock('project', project.id);
+    if (!ok) return;
+    state.projectEditMode = true;
+    setProjectFormEditable(true);
+    setStatus('Project editing enabled.');
+  });
+}
+
+if (closeProjectWorkbenchBtn) {
+  closeProjectWorkbenchBtn.addEventListener('click', async () => {
+    const pid = state.selectedProjectId;
+    if (pid) await releaseLock('project', pid);
+    state.selectedProjectId = '';
+    state.projectEditMode = false;
+    closeFindingWorkbench();
+    closeReportEditor();
+    renderPentests();
+    setStatus('Project workbench closed.');
+  });
+}
+
+document.querySelectorAll('.menu-item').forEach((btn) => btn.addEventListener('click', () => {
+  openTab(btn.dataset.tab);
 document.querySelectorAll('.menu-item').forEach((btn) => btn.addEventListener('click', () => {
   document.querySelectorAll('.menu-item').forEach((b) => b.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
