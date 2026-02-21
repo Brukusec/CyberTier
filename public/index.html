@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CyberDel</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg-grid"></div>
+
+  <div class="layout">
+    <aside class="side-nav">
+      <div class="brand">
+        <div class="brand-dot"></div>
+        <div>
+          <h1>CyberDel</h1>
+          <p>Security Testing Cyber Ops Console</p>
+        </div>
+      </div>
+
+      <nav class="menu">
+        <button class="menu-item active" data-tab="dashboardTab">
+          <span class="menu-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h8V3H3z"></path><path d="M13 21h8v-6h-8z"></path><path d="M13 3h8v6h-8z"></path><path d="M3 21h8v-6H3z"></path></svg>
+          </span>
+          <span>Dashboard</span>
+        </button>
+        <button class="menu-item" data-tab="buTab">
+          <span class="menu-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"></path><path d="M5 21V7l7-4 7 4v14"></path><path d="M9 10h.01"></path><path d="M15 10h.01"></path><path d="M9 14h.01"></path><path d="M15 14h.01"></path></svg>
+          </span>
+          <span>Business Unit</span>
+        </button>
+        <div id="buSubfolder" class="menu-subfolder hidden"></div>
+        <button class="menu-item" data-tab="assetsTab">
+          <span class="menu-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"></path><path d="M3 12l9 4 9-4"></path><path d="M3 17l9 4 9-4"></path></svg>
+          </span>
+          <span>Assets</span>
+        </button>
+        <button class="menu-item" data-tab="pentestsTab">
+          <span class="menu-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"></path><path d="M4 12h16"></path><path d="M4 17h10"></path><path d="M18 16l2 2 3-3"></path></svg>
+          </span>
+          <span>Pentest Projects</span>
+        </button>
+        <div id="projectSubfolder" class="menu-subfolder hidden"></div>
+        <button class="menu-item" data-tab="settingsTab">
+          <span class="menu-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1z"></path></svg>
+          </span>
+          <span>Settings</span>
+        </button>
+      </nav>
+
+      <div class="side-footer">
+        <span class="pill">THREAT READY MODE</span>
+      </div>
+    </aside>
+
+    <main class="content">
+      <header class="topbar">
+        <div><h2>Security Testing Cyber Ops Console</h2></div>
+        
+      </header>
+
+      <section id="dashboardTab" class="tab-panel active">
+        <section class="panel">
+          <h3>Overview</h3>
+          <div class="kpi-grid">
+            <div class="kpi-card"><h4>Total Assets</h4><p id="kpiTotalAssets">0</p></div>
+            <div class="kpi-card"><h4>Total Business Units</h4><p id="kpiTotalBu">0</p></div>
+            <div class="kpi-card"><h4>P0 Pentested</h4><p id="kpiP0">0% (0/0)</p></div>
+            <div class="kpi-card"><h4>P1 Pentested</h4><p id="kpiP1">0% (0/0)</p></div>
+            <div class="kpi-card"><h4>P2 Pentested</h4><p id="kpiP2">0% (0/0)</p></div>
+          </div>
+        </section>
+      </section>
+
+      <section id="buTab" class="tab-panel">
+        <section id="buOverviewPanel" class="panel">
+          <div class="section-head">
+            <h3>Business Unit overview</h3>
+            <button id="openBuModalBtn" class="btn-primary" type="button">Create BU</button>
+          </div>
+          <div class="kpi-grid">
+            <div class="kpi-card"><h4>Total Business Units</h4><p id="buTotalUnits">0</p></div>
+            <div class="kpi-card"><h4>Total Assets</h4><p id="buTotalAssets">0</p></div>
+            <div class="kpi-card"><h4>P0 Pentested</h4><p id="buP0">0% (0/0)</p></div>
+            <div class="kpi-card"><h4>P1 Pentested</h4><p id="buP1">0% (0/0)</p></div>
+            <div class="kpi-card"><h4>P2 Pentested</h4><p id="buP2">0% (0/0)</p></div>
+          </div>
+        </section>
+
+        <section id="buMetricsPanel" class="panel">
+          <h3>Business Units and metrics</h3>
+          <div class="table-wrap">
+            <table id="buTable">
+              <thead>
+              <tr>
+                <th>BU ID</th><th>BU</th><th>Main contact</th><th>Total assets</th><th>P0 pentested</th><th>P1 pentested</th><th>P2 pentested</th><th>Actions</th>
+              </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="buDetailPanel" class="panel hidden">
+          <h3 id="buDetailTitle">BU details</h3>
+          <div id="buDetailContent" class="bu-detail-empty">Select a Business Unit to view linked assets and pentests.</div>
+        </section>
+      </section>
+
+      <section id="assetsTab" class="tab-panel">
+        <section class="assets-shell panel">
+          <div class="assets-header-row">
+            <h3>Assets</h3>
+            <select id="assetsBuFilter" multiple size="4"></select>
+          </div>
+
+          <div class="assets-overview-grid">
+            <article class="overview-card">
+              <h4>Total assets</h4>
+              <p id="assetsTotalCount">0</p>
+              <small id="assetsSeveritySummary">P0:0 • P1:0 • P2:0 • P3:0 • P4:0</small>
+            </article>
+            <article class="overview-card">
+              <h4>Tier distribution (%)</h4>
+              <div id="tierDistributionChart" class="mini-chart"></div>
+            </article>
+            <article class="overview-card">
+              <h4>Pentest coverage by tier (%)</h4>
+              <div id="tierCoverageChart" class="mini-chart"></div>
+            </article>
+          </div>
+
+          <div class="assets-actions-row">
+            <input id="assetsSearch" placeholder="Search assets, owners, BU..." />
+            <label class="csv-upload assets-csv"><input id="csvInput" type="file" accept=".csv" />Import CSV</label>
+            <button id="addAssetBtn" class="btn-primary" type="button">Add asset</button>
+          </div>
+
+          <div class="table-wrap">
+            <table id="assetsTable" class="assets-table-light">
+              <thead>
+              <tr><th>Asset name</th><th>BU</th><th>Risk</th><th>Defined Tier</th><th>Current pentest status</th><th>Actions</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="pentestsTab" class="tab-panel">
+        <section class="panel">
+          <div class="section-head">
+            <h3>Pentest projects</h3>
+          </div>
+          <div class="kpi-grid pentest-kpis">
+            <div class="kpi-card"><h4>Projects</h4><p id="kpiProjects">0</p></div>
+            <div class="kpi-card"><h4>In progress</h4><p id="kpiProjectsInProgress">0</p></div>
+            <div class="kpi-card"><h4>Open findings</h4><p id="kpiFindingsOpen">0</p></div>
+            <div class="kpi-card"><h4>Reports issued</h4><p id="kpiReportsIssued">0</p></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head">
+            <h3>Project register</h3>
+            <button id="addProjectBtn" class="btn-primary" type="button">New project</button>
+          </div>
+          <div class="table-wrap">
+            <table id="pentestProjectsTable">
+              <thead>
+              <tr><th>Project</th><th>Client</th><th>Asset</th><th>Phase</th><th>Lead tester</th><th>Findings</th><th>Reports</th><th>Actions</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel project-workbench-drawer hidden" id="projectWorkbench">
+          <div class="section-head">
+            <h3 id="projectWorkbenchTitle">Project workbench</h3>
+            <div class="section-head-actions">
+              <button id="projectEditBtn" class="small-btn" type="button">Edit project</button>
+              <button id="closeProjectWorkbenchBtn" class="small-btn" type="button">Close</button>
+            </div>
+          </div>
+          <form id="projectForm" class="form-grid">
+            <input type="hidden" name="id" />
+            <input name="name" placeholder="Project name" maxlength="140" required />
+            <input name="clientName" placeholder="Client / programme" maxlength="140" />
+            <select name="assetId" id="projectAssetSelect"></select>
+            <select name="buId" id="projectBuSelect"></select>
+            <select name="phase"><option>Planning</option><option>Scoping</option><option>Testing</option><option>Reporting</option><option>Retest</option><option>Closed</option></select>
+            <input name="testLead" placeholder="Lead tester" maxlength="120" />
+            <input name="clientContact" placeholder="Client contact" maxlength="120" />
+            <input name="startDate" type="date" />
+            <input name="endDate" type="date" />
+            <input name="methodology" placeholder="Methodology (e.g. PTES, OWASP)" maxlength="120" />
+            <label class="inline-check"><input type="checkbox" name="retestRequired" />Retest required</label>
+            <textarea name="scope" placeholder="Scope"></textarea>
+            <textarea name="attackSurface" placeholder="Attack surface and assumptions"></textarea>
+            <textarea name="executiveSummary" placeholder="Executive summary"></textarea>
+            <button class="btn-primary" type="submit">Save project draft</button>
+          </form>
+
+          <div class="project-subgrid">
+            <div>
+              <div class="section-head">
+                <h4>Findings / issues</h4>
+                <button id="openFindingEditorBtn" class="small-btn" type="button">Add finding</button>
+              </div>
+              <div class="table-wrap">
+                <table id="findingsTable"><thead><tr><th>Title</th><th>CVSS</th><th>Severity</th><th>CWE</th><th>OWASP</th><th>Date</th><th></th></tr></thead><tbody></tbody></table>
+              </div>
+            </div>
+
+            <div>
+              <div class="section-head">
+                <h4>Reports</h4>
+                <button id="openReportEditorBtn" class="small-btn" type="button">Add report</button>
+              </div>
+              <form id="reportForm" class="form-grid compact-form hidden">
+                <input name="name" placeholder="Report name" maxlength="140" required />
+                <select name="type"><option>Technical report</option><option>Executive summary</option><option>Retest report</option></select>
+                <select name="status"><option>Draft</option><option>QA</option><option>Issued</option></select>
+                <input name="version" placeholder="Version (e.g. v1.1)" maxlength="20" />
+                <input name="deliveredAt" type="date" />
+                <input name="reportFile" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+                <input name="reference" placeholder="Reference / file path" maxlength="220" />
+                <div class="form-inline-actions">
+                  <button class="btn-primary" type="submit">Save report</button>
+                  <button id="cancelReportEditorBtn" class="small-btn" type="button">Cancel</button>
+                </div>
+              </form>
+              <div class="table-wrap">
+                <table id="reportsTable"><thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Version</th><th>Date</th><th>Attachment</th><th></th></tr></thead><tbody></tbody></table>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section>
+
+        <section class="panel finding-workbench-drawer hidden" id="findingWorkbench">
+          <div class="section-head">
+            <h3>Finding editor</h3>
+            <button id="closeFindingWorkbenchBtn" class="small-btn" type="button">Close</button>
+          </div>
+          <form id="findingForm" class="form-grid compact-form">
+            <input name="title" placeholder="Finding Title" maxlength="180" required />
+            <textarea name="description" placeholder="Descrição"></textarea>
+            <textarea name="reproSteps" placeholder="Steps to reproduce"></textarea>
+            <textarea name="impact" placeholder="Impact"></textarea>
+
+            <label>CVSS AV<select name="cvss_av"><option value="N">Network</option><option value="A">Adjacent</option><option value="L">Local</option><option value="P">Physical</option></select></label>
+            <label>CVSS AC<select name="cvss_ac"><option value="L">Low</option><option value="H">High</option></select></label>
+            <label>CVSS PR<select name="cvss_pr"><option value="N">None</option><option value="L">Low</option><option value="H">High</option></select></label>
+            <label>CVSS UI<select name="cvss_ui"><option value="N">None</option><option value="R">Required</option></select></label>
+            <label>CVSS S<select name="cvss_s"><option value="U">Unchanged</option><option value="C">Changed</option></select></label>
+            <label>CVSS C<select name="cvss_c"><option value="N">None</option><option value="L">Low</option><option value="H">High</option></select></label>
+            <label>CVSS I<select name="cvss_i"><option value="N">None</option><option value="L">Low</option><option value="H">High</option></select></label>
+            <label>CVSS A<select name="cvss_a"><option value="N">None</option><option value="L">Low</option><option value="H">High</option></select></label>
+            <input name="cvssScore" id="cvssScore" placeholder="CVSS score" readonly />
+            <input name="severity" id="cvssSeverity" placeholder="CVSS severity" readonly />
+
+            <select name="cwe">
+              <option value="">CWE list</option>
+              <option>CWE-79: Cross-site Scripting</option>
+              <option>CWE-89: SQL Injection</option>
+              <option>CWE-287: Improper Authentication</option>
+              <option>CWE-352: CSRF</option>
+              <option>CWE-798: Hardcoded Credentials</option>
+            </select>
+            <select name="owasp">
+              <option value="">OWASP category</option>
+              <option>A01 Broken Access Control</option>
+              <option>A02 Cryptographic Failures</option>
+              <option>A03 Injection</option>
+              <option>A05 Security Misconfiguration</option>
+              <option>A07 Identification and Authentication Failures</option>
+            </select>
+            <select name="ttp">
+              <option value="Not applicable">TTP / MITRE ATT&CK (Not applicable)</option>
+              <option>T1190 Exploit Public-Facing Application</option>
+              <option>T1078 Valid Accounts</option>
+              <option>T1059 Command and Scripting Interpreter</option>
+            </select>
+            <input name="dateFound" type="date" />
+            <button class="btn-primary" type="submit">Save finding</button>
+          </form>
+        </section>
+
+      <section id="settingsTab" class="tab-panel">
+        <section class="panel">
+          <h3>Shared data settings</h3>
+          <form id="settingsForm" class="form-grid">
+            <input id="dataDirInput" name="dataDir" placeholder="Example: C:\\Users\\Public\\CyberTierShared" required />
+            <button class="btn-primary" type="submit">Apply data folder</button>
+          </form>
+          <p class="hint">You can use a synced SharePoint folder or a shared local folder.</p>
+          <p class="hint">Centralised data lives only in this configured shared folder.</p>
+        </section>
+      </section>
+
+      <p id="status" class="status"></p>
+    </main>
+  </div>
+
+  <dialog id="buEditorModal" class="asset-modal">
+    <form id="buEditorForm" class="asset-editor">
+      <div class="section-head"><h3>Create Business Unit</h3></div>
+      <div class="form-grid">
+        <input name="buId" placeholder="BU ID" maxlength="80" required />
+        <input name="name" placeholder="BU name" maxlength="120" required />
+        <input name="mainContact" placeholder="Main contact" maxlength="120" />
+        <textarea name="otherContacts" placeholder="Other contacts (one per line)"></textarea>
+        <select name="assetIds" id="buAssetSelect" multiple size="7"></select>
+      </div>
+      <div class="modal-actions"><button id="cancelBuEditorBtn" type="button" class="small-btn">Cancel</button><button type="submit" class="btn-primary">Save BU</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="assetEditorModal" class="asset-modal">
+    <form id="assetEditorForm" class="asset-editor">
+      <div class="section-head"><h3 id="assetEditorTitle">New asset</h3></div>
+      <input type="hidden" name="id" />
+      <div class="form-grid">
+        <input name="assetId" placeholder="Asset ID" maxlength="80" />
+        <input name="name" placeholder="Asset / App name" maxlength="140" required />
+        <select name="assetType"><option value="WebApp">WebApp</option><option value="API">API</option><option value="SaaS">SaaS</option><option value="Desktop">Desktop</option><option value="Service">Service</option><option value="Infra">Infra</option><option value="DataStore">DataStore</option><option value="Identity">Identity</option><option value="Other">Other</option></select>
+        <select name="buId" id="editorBuSelect"><option value="">No BU</option></select>
+        <input name="businessOwner" placeholder="Business owner" maxlength="120" />
+        <input name="techOwner" placeholder="Technical owner" maxlength="120" />
+        <input name="mainContact" placeholder="Main contact" maxlength="120" />
+        <input name="otherContacts" placeholder="Other contacts" maxlength="180" />
+        <select name="environment"><option>Prod</option><option>PreProd</option><option>Dev</option><option>Other</option></select>
+        <select name="riskImpactRating"><option>Low</option><option>Medium</option><option>High</option><option>Material/Severe</option></select>
+        <input name="cyberTierDefinedYear" placeholder="Defined tier (manual)" />
+        <input name="cyberTierCurrentYear" placeholder="Current year tier" />
+        <input name="cyberTierPreviousYear" placeholder="Previous year tier" maxlength="20" />
+        <input name="pentestDate" type="date" />
+        <select name="pentestStatus" required><option value="No schedule">No schedule</option><option value="Submit">Submit</option><option value="Meeting schedule">Meeting schedule</option><option value="Scope sent">Scope sent</option><option value="Schedule pentest date and assign to internal or external">Schedule pentest date and assign to internal or external</option><option value="Report review">Report review</option><option value="Presentation">Presentation</option><option value="Report sent">Report sent</option></select>
+        <label class="inline-check"><input type="checkbox" name="externalFacing" /> External facing</label>
+        <label class="inline-check"><input type="checkbox" name="pentestDone" /> Pentest complete</label>
+        <label class="inline-check"><input type="checkbox" name="internet_facing" /> internet_facing</label>
+        <label class="inline-check"><input type="checkbox" name="partner_or_public_api" /> partner_or_public_api</label>
+        <label class="inline-check"><input type="checkbox" name="weak_auth_no_mfa_legacy_shared" /> weak_auth_no_mfa_legacy_shared</label>
+        <label class="inline-check"><input type="checkbox" name="recent_major_change_90d" /> recent_major_change_90d</label>
+        <label class="inline-check"><input type="checkbox" name="bad_history_critical_findings_or_incidents_18m" /> bad_history_critical_findings_or_incidents_18m</label>
+        <label class="inline-check"><input type="checkbox" name="many_users_enterprise_wide" /> many_users_enterprise_wide</label>
+        <label class="inline-check"><input type="checkbox" name="crownJewelAdjacency" /> crown_jewel_adjacency</label>
+      </div>
+      <div class="modal-actions"><button id="cancelAssetEditorBtn" type="button" class="small-btn">Cancel</button><button type="submit" class="btn-primary">Save asset</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="assetShowModal" class="asset-modal">
+    <div class="asset-editor">
+      <div class="section-head"><h3>Asset details</h3></div>
+      <div id="assetShowContent" class="asset-show-grid"></div>
+      <div class="modal-actions"><button id="closeAssetShowBtn" type="button" class="btn-primary">Close</button></div>
+    </div>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
