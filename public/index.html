@@ -20,6 +20,38 @@
       </div>
 
       <nav class="menu">
+        <button class="menu-item active" data-tab="dashboardTab">
+          <span class="menu-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h8V3H3z"></path><path d="M13 21h8v-6h-8z"></path><path d="M13 3h8v6h-8z"></path><path d="M3 21h8v-6H3z"></path></svg>
+          </span>
+          <span>Dashboard</span>
+        </button>
+        <button class="menu-item" data-tab="buTab">
+          <span class="menu-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"></path><path d="M5 21V7l7-4 7 4v14"></path><path d="M9 10h.01"></path><path d="M15 10h.01"></path><path d="M9 14h.01"></path><path d="M15 14h.01"></path></svg>
+          </span>
+          <span>Business Unit</span>
+        </button>
+        <div id="buSubfolder" class="menu-subfolder hidden"></div>
+        <button class="menu-item" data-tab="assetsTab">
+          <span class="menu-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"></path><path d="M3 12l9 4 9-4"></path><path d="M3 17l9 4 9-4"></path></svg>
+          </span>
+          <span>Assets</span>
+        </button>
+        <button class="menu-item" data-tab="pentestsTab">
+          <span class="menu-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"></path><path d="M4 12h16"></path><path d="M4 17h10"></path><path d="M18 16l2 2 3-3"></path></svg>
+          </span>
+          <span>Pentest Projects</span>
+        </button>
+        <div id="projectSubfolder" class="menu-subfolder hidden"></div>
+        <button class="menu-item" data-tab="settingsTab">
+          <span class="menu-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.2a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.2a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.2a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.2a1.6 1.6 0 0 0-1.4 1z"></path></svg>
+          </span>
+          <span>Settings</span>
+        </button>
         <button class="menu-item active" data-tab="dashboardTab">Dashboard</button>
         <button class="menu-item" data-tab="buTab">Business Unit</button>
         <button class="menu-item" data-tab="assetsTab">Assets</button>
@@ -53,6 +85,21 @@
       </section>
 
       <section id="buTab" class="tab-panel">
+        <section id="buOverviewPanel" class="panel">
+          <div class="section-head">
+            <h3>Business Unit overview</h3>
+            <button id="openBuModalBtn" class="btn-primary" type="button">Create BU</button>
+          </div>
+          <div class="kpi-grid">
+            <div class="kpi-card"><h4>Total Business Units</h4><p id="buTotalUnits">0</p></div>
+            <div class="kpi-card"><h4>Total Assets</h4><p id="buTotalAssets">0</p></div>
+            <div class="kpi-card"><h4>P0 Pentested</h4><p id="buP0">0% (0/0)</p></div>
+            <div class="kpi-card"><h4>P1 Pentested</h4><p id="buP1">0% (0/0)</p></div>
+            <div class="kpi-card"><h4>P2 Pentested</h4><p id="buP2">0% (0/0)</p></div>
+          </div>
+        </section>
+
+        <section id="buMetricsPanel" class="panel">
         <section class="panel">
           <h3>New Business Unit</h3>
           <form id="buForm" class="form-grid">
@@ -71,12 +118,18 @@
             <table id="buTable">
               <thead>
               <tr>
+                <th>BU ID</th><th>BU</th><th>Main contact</th><th>Total assets</th><th>P0 pentested</th><th>P1 pentested</th><th>P2 pentested</th><th>Actions</th>
                 <th>BU</th><th>Main contact</th><th>Linked assets</th><th>Total</th><th>P0 pentested</th><th>P1 pentested</th><th>P2 pentested</th><th></th>
               </tr>
               </thead>
               <tbody></tbody>
             </table>
           </div>
+        </section>
+
+        <section id="buDetailPanel" class="panel hidden">
+          <h3 id="buDetailTitle">BU details</h3>
+          <div id="buDetailContent" class="bu-detail-empty">Select a Business Unit to view linked assets and pentests.</div>
         </section>
       </section>
 
@@ -318,6 +371,20 @@
       <p id="status" class="status"></p>
     </main>
   </div>
+
+  <dialog id="buEditorModal" class="asset-modal">
+    <form id="buEditorForm" class="asset-editor">
+      <div class="section-head"><h3>Create Business Unit</h3></div>
+      <div class="form-grid">
+        <input name="buId" placeholder="BU ID" maxlength="80" required />
+        <input name="name" placeholder="BU name" maxlength="120" required />
+        <input name="mainContact" placeholder="Main contact" maxlength="120" />
+        <textarea name="otherContacts" placeholder="Other contacts (one per line)"></textarea>
+        <select name="assetIds" id="buAssetSelect" multiple size="7"></select>
+      </div>
+      <div class="modal-actions"><button id="cancelBuEditorBtn" type="button" class="small-btn">Cancel</button><button type="submit" class="btn-primary">Save BU</button></div>
+    </form>
+  </dialog>
 
   <dialog id="assetEditorModal" class="asset-modal">
     <form id="assetEditorForm" class="asset-editor">

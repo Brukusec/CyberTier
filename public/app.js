@@ -28,6 +28,10 @@ const state = {
   assetsSearch: '',
   owner: localStorage.getItem('cyberdel-owner') || `user-${crypto.randomUUID().slice(0,8)}`,
   ownedLocks: [],
+  projectEditMode: false,
+  selectedBuId: ''
+};
+localStorage.setItem('cyberdel-owner', state.owner);
   projectEditMode: false
 };
 localStorage.setItem('cyberdel-owner', state.owner);
@@ -42,6 +46,7 @@ const findingsTbody = document.querySelector('#findingsTable tbody');
 const reportsTbody = document.querySelector('#reportsTable tbody');
 const closeProjectWorkbenchBtn = $('closeProjectWorkbenchBtn');
 const projectSubfolder = $('projectSubfolder');
+const buSubfolder = $('buSubfolder');
 const projectEditBtn = $('projectEditBtn');
 const findingWorkbench = $('findingWorkbench');
 const openFindingEditorBtn = $('openFindingEditorBtn');
@@ -51,6 +56,7 @@ const cvssSeverityInput = $('cvssSeverity');
 const openReportEditorBtn = $('openReportEditorBtn');
 const cancelReportEditorBtn = $('cancelReportEditorBtn');
 const reportFormEl = $('reportForm');
+const buEditorModal = $('buEditorModal');
 let persistTimer = null;
 
 function setStatus(msg) { $('status').textContent = msg; }
@@ -200,6 +206,19 @@ function createAsset(payload = {}) {
   return asset;
 }
 
+function parseContacts(value) {
+  if (Array.isArray(value)) return value.map((v) => sanitiseText(v, 120)).filter(Boolean);
+  return String(value || '').split(/\r?\n|,/).map((v) => sanitiseText(v, 120)).filter(Boolean);
+}
+
+function createBusinessUnit(payload = {}) {
+  return {
+    id: payload.id || crypto.randomUUID(),
+    buId: sanitiseText(payload.buId || payload.code || '', 80),
+    name: sanitiseText(payload.name || '', 120),
+    mainContact: sanitiseText(payload.mainContact || '', 120),
+    otherContacts: parseContacts(payload.otherContacts || payload.contacts || [])
+  };
 function createBusinessUnit(payload = {}) {
   return { id: payload.id || crypto.randomUUID(), name: payload.name || '', mainContact: payload.mainContact || '' };
 }
@@ -404,12 +423,44 @@ function renderAssetsTable() {
   });
 }
 
+function openBusinessUnit(buId) {
+  if (!state.businessUnits.some((b) => b.id === buId)) return;
+  state.selectedBuId = buId;
+  openTab('buTab');
+  syncBuPanels();
+  renderBuTable();
+  renderBuDetail();
+  renderBuSubfolder();
+}
+
+function renderBuOverview() {
+  $('buTotalUnits').textContent = String(state.businessUnits.length);
+  $('buTotalAssets').textContent = String(state.assets.length);
+  $('buP0').textContent = formatMetric(state.assets, 'P0');
+  $('buP1').textContent = formatMetric(state.assets, 'P1');
+  $('buP2').textContent = formatMetric(state.assets, 'P2');
+}
+
+
+function syncBuPanels() {
+  const overview = $('buOverviewPanel');
+  const metrics = $('buMetricsPanel');
+  const detail = $('buDetailPanel');
+  const hasSelection = !!state.selectedBuId;
+  overview?.classList.toggle('hidden', hasSelection);
+  metrics?.classList.toggle('hidden', hasSelection);
+  detail?.classList.toggle('hidden', !hasSelection);
+}
+
 function renderBuTable() {
   buTbody.innerHTML = '';
   state.businessUnits.forEach((bu) => {
     const buAssets = state.assets.filter((a) => a.buId === bu.id);
     const tr = document.createElement('tr');
     tr.innerHTML = `
+      <td>${escapeHtml(bu.buId || '—')}</td>
+      <td>${escapeHtml(bu.name)}</td>
+      <td>${escapeHtml(bu.mainContact || '—')}</td>
       <td><input data-k="name" value="${escapeHtml(bu.name)}" /></td>
       <td><input data-k="mainContact" value="${escapeHtml(bu.mainContact)}" /></td>
       <td>${escapeHtml(buAssets.map((a) => a.name).join(', ') || '—')}</td>
@@ -417,6 +468,9 @@ function renderBuTable() {
       <td>${formatMetric(buAssets, 'P0')}</td>
       <td>${formatMetric(buAssets, 'P1')}</td>
       <td>${formatMetric(buAssets, 'P2')}</td>
+      <td><button class="small-btn" data-open="1">Open</button> <button class="small-btn" data-del="1">Remove</button></td>`;
+
+    tr.querySelector('[data-open]').addEventListener('click', () => openBusinessUnit(bu.id));
       <td><button class="small-btn" data-del="1">Remove</button></td>`;
 
     tr.querySelectorAll('input').forEach((input) => input.addEventListener('change', (e) => { bu[e.target.dataset.k] = e.target.value; queuePersist('Business Unit updated and saved.'); }));
@@ -424,12 +478,99 @@ function renderBuTable() {
       state.businessUnits = state.businessUnits.filter((x) => x.id !== bu.id);
       state.assets.forEach((a) => { if (a.buId === bu.id) a.buId = ''; });
       state.pentestProjects.forEach((p) => { if (p.buId === bu.id) p.buId = ''; });
+      if (state.selectedBuId === bu.id) state.selectedBuId = '';
       renderAll();
       queuePersist('Business Unit removed and saved.');
     });
     buTbody.appendChild(tr);
   });
 }
+
+function renderBuDetail() {
+  const container = $('buDetailContent');
+  const title = $('buDetailTitle');
+  const bu = state.businessUnits.find((b) => b.id === state.selectedBuId) || null;
+  if (!bu) {
+    if (title) title.textContent = 'BU details';
+    if (container) {
+      container.className = 'bu-detail-empty';
+      container.textContent = 'Select a Business Unit to view linked assets and pentests.';
+    }
+    return;
+  }
+
+  const buAssets = state.assets.filter((a) => a.buId === bu.id);
+  const buProjects = state.pentestProjects.filter((p) => p.buId === bu.id);
+  if (title) title.textContent = `BU details: ${bu.name}`;
+  container.className = 'bu-detail-grid';
+  container.innerHTML = `
+    <div class="bu-detail-meta">
+      <div class="bu-meta-item"><span>BU ID</span><strong>${escapeHtml(bu.buId || '—')}</strong></div>
+      <div class="bu-meta-item"><span>Main contact</span><strong>${escapeHtml(bu.mainContact || '—')}</strong></div>
+      <div class="bu-meta-item"><span>Other contacts</span><strong>${escapeHtml((bu.otherContacts || []).join(', ') || '—')}</strong></div>
+      <div class="bu-meta-item"><span>P0 / P1 / P2</span><strong>${escapeHtml(formatMetric(buAssets, 'P0'))} • ${escapeHtml(formatMetric(buAssets, 'P1'))} • ${escapeHtml(formatMetric(buAssets, 'P2'))}</strong></div>
+    </div>
+    <div>
+      <h4>Associated assets</h4>
+      <div class="bu-related-list" id="buAssetsList"></div>
+    </div>
+    <div>
+      <h4>Associated pentests</h4>
+      <div class="bu-related-list" id="buPentestsList"></div>
+    </div>`;
+
+  const assetsList = $('buAssetsList');
+  if (!buAssets.length) {
+    assetsList.innerHTML = '<div class="bu-related-item"><div><strong>No linked assets</strong></div></div>';
+  } else {
+    buAssets.forEach((asset) => {
+      const row = document.createElement('div');
+      row.className = 'bu-related-item';
+      row.innerHTML = `<div><strong>${escapeHtml(asset.name || 'Unnamed asset')}</strong><small>${escapeHtml(getPriorityTier(asset))} • ${escapeHtml(asset.pentestStatus || 'No schedule')}</small></div><button class="small-btn" type="button">Open</button>`;
+      row.querySelector('button').addEventListener('click', () => {
+        openTab('assetsTab');
+        openAssetShow(asset);
+      });
+      assetsList.appendChild(row);
+    });
+  }
+
+  const pentestsList = $('buPentestsList');
+  if (!buProjects.length) {
+    pentestsList.innerHTML = '<div class="bu-related-item"><div><strong>No linked pentest projects</strong></div></div>';
+  } else {
+    buProjects.forEach((project) => {
+      const row = document.createElement('div');
+      row.className = 'bu-related-item';
+      row.innerHTML = `<div><strong>${escapeHtml(project.name)}</strong><small>${escapeHtml(project.phase || 'Planning')}</small></div><button class="small-btn" type="button">Open</button>`;
+      row.querySelector('button').addEventListener('click', async () => {
+        openTab('pentestsTab');
+        const ok = await acquireLock('project', project.id);
+        if (!ok) return;
+        state.selectedProjectId = project.id;
+        state.projectEditMode = false;
+        renderPentests();
+      });
+      pentestsList.appendChild(row);
+    });
+  }
+}
+
+function renderBuSubfolder() {
+  if (!buSubfolder) return;
+  if (!state.businessUnits.length) {
+    buSubfolder.innerHTML = '';
+    buSubfolder.classList.add('hidden');
+    return;
+  }
+
+  buSubfolder.innerHTML = state.businessUnits.map((bu) => `<button type="button" class="menu-sub-item" data-bu-id="${bu.id}">${escapeHtml(bu.buId || bu.name || 'BU')}</button>`).join('');
+  buSubfolder.classList.remove('hidden');
+  buSubfolder.querySelectorAll('[data-bu-id]').forEach((el) => {
+    el.addEventListener('click', () => openBusinessUnit(el.dataset.buId));
+  });
+}
+
 
 function getSelectedProject() {
   return state.pentestProjects.find((p) => p.id === state.selectedProjectId) || null;
@@ -563,6 +704,8 @@ function renderProjectWorkbench() {
 
 function renderBuSelectors() {
   $('editorBuSelect').innerHTML = ['<option value="">No BU</option>', ...state.businessUnits.map((b) => `<option value="${b.id}">${escapeHtml(b.name)}</option>`)].join('');
+  const buAssetSelect = $('buAssetSelect');
+  if (buAssetSelect) buAssetSelect.innerHTML = state.assets.map((a) => `<option value="${a.id}">${escapeHtml(a.name || '(unnamed)')}</option>`).join('');
   $('buAssetSelect').innerHTML = state.assets.map((a) => `<option value="${a.id}">${escapeHtml(a.name || '(unnamed)')}</option>`).join('');
   $('assetsBuFilter').innerHTML = state.businessUnits.map((b) => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
   Array.from($('assetsBuFilter').options).forEach((o) => { o.selected = state.assetsFilterBuIds.includes(o.value); });
@@ -639,6 +782,11 @@ function renderAll() {
   renderDashboard();
   renderAssetsOverview();
   renderAssetsTable();
+  renderBuOverview();
+  renderBuTable();
+  syncBuPanels();
+  renderBuDetail();
+  renderBuSubfolder();
   renderBuTable();
   renderPentests();
 }
@@ -779,6 +927,38 @@ $('assetEditorForm').addEventListener('submit', (e) => {
   const previousId = payload.id;
   $('assetEditorModal').close();
   if (previousId) await releaseLock('asset', previousId);
+  renderAll();
+});
+
+$('openBuModalBtn').addEventListener('click', () => {
+  $('buEditorForm').reset();
+  renderBuSelectors();
+  buEditorModal?.showModal();
+});
+
+$('cancelBuEditorBtn').addEventListener('click', () => buEditorModal?.close());
+
+$('buEditorForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const fd = new FormData($('buEditorForm'));
+  const bu = createBusinessUnit({
+    buId: fd.get('buId'),
+    name: fd.get('name'),
+    mainContact: fd.get('mainContact'),
+    otherContacts: fd.get('otherContacts')
+  });
+  if (!bu.buId || !bu.name) return setStatus('BU ID and BU name are required.');
+  if (state.businessUnits.some((x) => x.buId.toLowerCase() === bu.buId.toLowerCase())) return setStatus('BU ID already exists.');
+  state.businessUnits.push(bu);
+  const buSelect = $('buAssetSelect');
+  if (buSelect) {
+    Array.from(buSelect.selectedOptions).forEach((opt) => {
+      const asset = state.assets.find((a) => a.id === opt.value);
+      if (asset) asset.buId = bu.id;
+    });
+  }
+  state.selectedBuId = bu.id;
+  buEditorModal?.close();
   $('assetEditorModal').close();
   renderAll();
 });
@@ -1063,6 +1243,12 @@ if (closeProjectWorkbenchBtn) {
 
 document.querySelectorAll('.menu-item').forEach((btn) => btn.addEventListener('click', () => {
   openTab(btn.dataset.tab);
+  if (btn.dataset.tab === 'buTab') {
+    state.selectedBuId = '';
+    syncBuPanels();
+    renderBuDetail();
+    renderBuSubfolder();
+  }
 document.querySelectorAll('.menu-item').forEach((btn) => btn.addEventListener('click', () => {
   document.querySelectorAll('.menu-item').forEach((b) => b.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));

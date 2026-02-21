@@ -92,12 +92,130 @@ function Send-Json($context, $statusCode, $obj) {
     $context.Response.OutputStream.Close()
 }
 
+
+function Get-SafeName([string]$value, [string]$fallback = 'item') {
+    $name = if ([string]::IsNullOrWhiteSpace($value)) { $fallback } else { $value }
+    $invalid = [IO.Path]::GetInvalidFileNameChars() + [char]':'
+    foreach ($ch in $invalid) { $name = $name.Replace($ch, '-') }
+    $name = $name.Trim()
+    if ([string]::IsNullOrWhiteSpace($name)) { return $fallback }
+    return $name
+}
+
+function Write-Md([string]$path, [string]$content) {
+    Set-Content -Path $path -Value $content -Encoding UTF8
+}
+
+function Sync-MarkdownSnapshot($files) {
+    $assets = @(Read-JsonFile $files.assetsFile)
+    $businessUnits = @(Read-JsonFile $files.buFile)
+    $pentests = @(Read-JsonFile $files.pentestsFile)
+
+    $mdRoot = Join-Path $files.dataDir 'BU'
+    if (Test-Path $mdRoot) { Remove-Item -Path $mdRoot -Recurse -Force }
+    New-Item -ItemType Directory -Path $mdRoot | Out-Null
+
+    foreach ($bu in $businessUnits) {
+        $buId = [string]($bu.id)
+        $buName = Get-SafeName ([string]($bu.name)) "BU-$buId"
+        $buFolder = Join-Path $mdRoot $buName
+        $assetsFolder = Join-Path $buFolder 'Assets'
+        $pentestsFolder = Join-Path $buFolder 'Pentest'
+
+        New-Item -ItemType Directory -Path $assetsFolder -Force | Out-Null
+        New-Item -ItemType Directory -Path $pentestsFolder -Force | Out-Null
+
+        $buMd = @(
+            "# Business Unit",
+            "",
+            "- ID: $($bu.id)",
+            "- Name: $($bu.name)",
+            "- Main Contact: $($bu.mainContact)"
+        ) -join "`n"
+        Write-Md (Join-Path $buFolder 'BU.md') $buMd
+
+        $buAssets = @($assets | Where-Object { $_.buId -eq $buId })
+        foreach ($asset in $buAssets) {
+            $assetFile = Join-Path $assetsFolder ((Get-SafeName ([string]($asset.name)) ([string]($asset.id))) + '.md')
+            $assetMd = @(
+                "# Asset",
+                "",
+                "- ID: $($asset.id)",
+                "- Asset ID: $($asset.assetId)",
+                "- Name: $($asset.name)",
+                "- Type: $($asset.assetType)",
+                "- Risk: $($asset.riskImpactRating)",
+                "- Pentest Status: $($asset.pentestStatus)",
+                "- Pentest Date: $($asset.pentestDate)",
+                "- Business Owner: $($asset.businessOwner)",
+                "- Technical Owner: $($asset.techOwner)"
+            ) -join "`n"
+            Write-Md $assetFile $assetMd
+        }
+
+        $buPentests = @($pentests | Where-Object { $_.buId -eq $buId })
+        foreach ($project in $buPentests) {
+            $projectFolderName = Get-SafeName ("$($project.id)-$($project.name)") ([string]($project.id))
+            $projectFolder = Join-Path $pentestsFolder $projectFolderName
+            $findingsFolder = Join-Path $projectFolder 'Findings'
+            New-Item -ItemType Directory -Path $findingsFolder -Force | Out-Null
+
+            $projectMd = @(
+                "# Pentest Project",
+                "",
+                "- ID: $($project.id)",
+                "- Name: $($project.name)",
+                "- Client: $($project.clientName)",
+                "- Phase: $($project.phase)",
+                "- Lead Tester: $($project.testLead)",
+                "- Start Date: $($project.startDate)",
+                "- End Date: $($project.endDate)",
+                "",
+                "## Scope",
+                "$($project.scope)",
+                "",
+                "## Executive Summary",
+                "$($project.executiveSummary)"
+            ) -join "`n"
+            Write-Md (Join-Path $projectFolder 'Pentest.md') $projectMd
+
+            foreach ($finding in @($project.findings)) {
+                $findingFile = Join-Path $findingsFolder ((Get-SafeName ([string]($finding.title)) ([string]($finding.id))) + '.md')
+                $findingMd = @(
+                    "# Finding",
+                    "",
+                    "- ID: $($finding.id)",
+                    "- Title: $($finding.title)",
+                    "- CVSS: $($finding.cvssScore)",
+                    "- Severity: $($finding.severity)",
+                    "- CWE: $($finding.cwe)",
+                    "- OWASP: $($finding.owasp)",
+                    "- TTP/MITRE: $($finding.ttp)",
+                    "- Date Found: $($finding.dateFound)",
+                    "",
+                    "## Description",
+                    "$($finding.description)",
+                    "",
+                    "## Steps to Reproduce",
+                    "$($finding.reproSteps)",
+                    "",
+                    "## Impact",
+                    "$($finding.impact)"
+                ) -join "`n"
+                Write-Md $findingFile $findingMd
+            }
+        }
+    }
+}
+
 function Read-JsonFile([string]$filePath) {
     $raw = Get-Content -Path $filePath -Raw -Encoding UTF8
     if ([string]::IsNullOrWhiteSpace($raw)) { return @() }
     return $raw | ConvertFrom-Json
 }
 
+$filesInit = Ensure-DataFiles
+Sync-MarkdownSnapshot $filesInit
 Ensure-DataFiles | Out-Null
 
 $listener = [System.Net.HttpListener]::new()
@@ -138,6 +256,7 @@ try {
                 $incoming = $body | ConvertFrom-Json
                 $target = if ($path -eq '/api/assets') { $files.assetsFile } elseif ($path -eq '/api/business-units') { $files.buFile } else { $files.pentestsFile }
                 Set-Content -Path $target -Value ($incoming | ConvertTo-Json -Depth 12) -Encoding UTF8
+                Sync-MarkdownSnapshot $files
                 Send-Json $context 200 @{ ok = $true; count = @($incoming).Count }
                 continue
             }
