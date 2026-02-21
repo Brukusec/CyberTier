@@ -42,6 +42,10 @@ Configured shared folder stores:
   - Findings are managed in a dedicated subfolder/workbench (`/<project-id>/finding`)
   - Finding fields: title, description, steps to reproduce, impact, CVSS calculator, calculated severity, CWE list, OWASP list, TTP/MITRE (including Not applicable), finding date
   - Report management uses an **Add report** button that reveals report fields (name, type, version, date) and report upload metadata for PDF/DOCX
+  - Project register with phase and tester ownership
+  - Workbench fields for scope, attack surface, methodology, retest and summary
+  - Findings/issues management with severity, status, CVSS, CWE/OWASP and TTP
+  - Report management with status/version/reference
 - **Settings**:
   - Configure the shared data folder path.
 

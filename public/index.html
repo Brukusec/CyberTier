@@ -52,6 +52,12 @@
           </span>
           <span>Settings</span>
         </button>
+        <button class="menu-item active" data-tab="dashboardTab">Dashboard</button>
+        <button class="menu-item" data-tab="buTab">Business Unit</button>
+        <button class="menu-item" data-tab="assetsTab">Assets</button>
+        <button class="menu-item" data-tab="pentestsTab">Pentest Projects</button>
+        <div id="projectSubfolder" class="menu-subfolder hidden"></div>
+        <button class="menu-item" data-tab="settingsTab">Settings</button>
       </nav>
 
       <div class="side-footer">
@@ -94,12 +100,26 @@
         </section>
 
         <section id="buMetricsPanel" class="panel">
+        <section class="panel">
+          <h3>New Business Unit</h3>
+          <form id="buForm" class="form-grid">
+            <input name="name" placeholder="BU name" maxlength="120" required />
+            <input name="mainContact" placeholder="Main contact" maxlength="120" />
+            <input name="name" placeholder="BU name" required />
+            <input name="mainContact" placeholder="Main contact" />
+            <select name="assetIds" id="buAssetSelect" multiple size="6"></select>
+            <button class="btn-primary" type="submit">Add BU</button>
+          </form>
+        </section>
+
+        <section class="panel">
           <h3>Business Units and metrics</h3>
           <div class="table-wrap">
             <table id="buTable">
               <thead>
               <tr>
                 <th>BU ID</th><th>BU</th><th>Main contact</th><th>Total assets</th><th>P0 pentested</th><th>P1 pentested</th><th>P2 pentested</th><th>Actions</th>
+                <th>BU</th><th>Main contact</th><th>Linked assets</th><th>Total</th><th>P0 pentested</th><th>P1 pentested</th><th>P2 pentested</th><th></th>
               </tr>
               </thead>
               <tbody></tbody>
@@ -201,6 +221,20 @@
             <input name="startDate" type="date" />
             <input name="endDate" type="date" />
             <input name="methodology" placeholder="Methodology (e.g. PTES, OWASP)" maxlength="120" />
+        <section class="panel hidden" id="projectWorkbench">
+          <h3 id="projectWorkbenchTitle">Project workbench</h3>
+          <form id="projectForm" class="form-grid">
+            <input type="hidden" name="id" />
+            <input name="name" placeholder="Project name" required />
+            <input name="clientName" placeholder="Client / programme" />
+            <select name="assetId" id="projectAssetSelect"></select>
+            <select name="buId" id="projectBuSelect"></select>
+            <select name="phase"><option>Planning</option><option>Scoping</option><option>Testing</option><option>Reporting</option><option>Retest</option><option>Closed</option></select>
+            <input name="testLead" placeholder="Lead tester" />
+            <input name="clientContact" placeholder="Client contact" />
+            <input name="startDate" type="date" />
+            <input name="endDate" type="date" />
+            <input name="methodology" placeholder="Methodology (e.g. PTES, OWASP)" />
             <label class="inline-check"><input type="checkbox" name="retestRequired" />Retest required</label>
             <textarea name="scope" placeholder="Scope"></textarea>
             <textarea name="attackSurface" placeholder="Attack surface and assumptions"></textarea>
@@ -216,6 +250,22 @@
               </div>
               <div class="table-wrap">
                 <table id="findingsTable"><thead><tr><th>Title</th><th>CVSS</th><th>Severity</th><th>CWE</th><th>OWASP</th><th>Date</th><th></th></tr></thead><tbody></tbody></table>
+              <h4>Findings / issues</h4>
+              <form id="findingForm" class="form-grid compact-form">
+                <input name="title" placeholder="Finding title" required />
+                <select name="severity"><option>Critical</option><option>High</option><option selected>Medium</option><option>Low</option><option>Info</option></select>
+                <select name="status"><option>Open</option><option>In review</option><option>Accepted risk</option><option>Closed</option></select>
+                <input name="cvss" placeholder="CVSS (e.g. 8.6)" />
+                <input name="cwe" placeholder="CWE" />
+                <input name="owasp" placeholder="OWASP category" />
+                <input name="affectedEndpoint" placeholder="Affected endpoint / system" />
+                <input name="ttp" placeholder="TTP / MITRE ATT&CK" />
+                <textarea name="description" placeholder="Technical description"></textarea>
+                <textarea name="recommendation" placeholder="Remediation recommendation"></textarea>
+                <button class="small-btn" type="submit">Add finding</button>
+              </form>
+              <div class="table-wrap">
+                <table id="findingsTable"><thead><tr><th>Title</th><th>Severity</th><th>Status</th><th>CVSS</th><th>TTP</th><th>Issue type</th><th></th></tr></thead><tbody></tbody></table>
               </div>
             </div>
 
@@ -239,6 +289,18 @@
               </form>
               <div class="table-wrap">
                 <table id="reportsTable"><thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Version</th><th>Date</th><th>Attachment</th><th></th></tr></thead><tbody></tbody></table>
+              <h4>Reports</h4>
+              <form id="reportForm" class="form-grid compact-form">
+                <input name="name" placeholder="Report name" required />
+                <select name="type"><option>Technical report</option><option>Executive summary</option><option>Retest report</option></select>
+                <select name="status"><option>Draft</option><option>QA</option><option>Issued</option></select>
+                <input name="version" placeholder="Version (e.g. v1.1)" />
+                <input name="reference" placeholder="Reference / file path" />
+                <input name="deliveredAt" type="date" />
+                <button class="small-btn" type="submit">Add report</button>
+              </form>
+              <div class="table-wrap">
+                <table id="reportsTable"><thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Version</th><th>Reference</th><th></th></tr></thead><tbody></tbody></table>
               </div>
             </div>
           </div>
@@ -337,12 +399,21 @@
         <input name="techOwner" placeholder="Technical owner" maxlength="120" />
         <input name="mainContact" placeholder="Main contact" maxlength="120" />
         <input name="otherContacts" placeholder="Other contacts" maxlength="180" />
+        <input name="assetId" placeholder="Asset ID" />
+        <input name="name" placeholder="Asset / App name" required />
+        <select name="assetType"><option value="WebApp">WebApp</option><option value="API">API</option><option value="SaaS">SaaS</option><option value="Desktop">Desktop</option><option value="Service">Service</option><option value="Infra">Infra</option><option value="DataStore">DataStore</option><option value="Identity">Identity</option><option value="Other">Other</option></select>
+        <select name="buId" id="editorBuSelect"><option value="">No BU</option></select>
+        <input name="businessOwner" placeholder="Business owner" />
+        <input name="techOwner" placeholder="Technical owner" />
+        <input name="mainContact" placeholder="Main contact" />
+        <input name="otherContacts" placeholder="Other contacts" />
         <select name="environment"><option>Prod</option><option>PreProd</option><option>Dev</option><option>Other</option></select>
         <select name="riskImpactRating"><option>Low</option><option>Medium</option><option>High</option><option>Material/Severe</option></select>
         <input name="cyberTierDefinedYear" placeholder="Defined tier (manual)" />
         <input name="cyberTierCurrentYear" placeholder="Current year tier" />
         <input name="cyberTierPreviousYear" placeholder="Previous year tier" maxlength="20" />
         <input name="pentestDate" type="date" />
+        <input name="cyberTierPreviousYear" placeholder="Previous year tier" />
         <select name="pentestStatus" required><option value="No schedule">No schedule</option><option value="Submit">Submit</option><option value="Meeting schedule">Meeting schedule</option><option value="Scope sent">Scope sent</option><option value="Schedule pentest date and assign to internal or external">Schedule pentest date and assign to internal or external</option><option value="Report review">Report review</option><option value="Presentation">Presentation</option><option value="Report sent">Report sent</option></select>
         <label class="inline-check"><input type="checkbox" name="externalFacing" /> External facing</label>
         <label class="inline-check"><input type="checkbox" name="pentestDone" /> Pentest complete</label>
